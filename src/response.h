@@ -12,6 +12,7 @@ LI_API int http_response_write_header(server *srv, connection *con, chunkqueue *
 
 LI_API int response_header_insert(server *srv, connection *con, const char *key, size_t keylen, const char *value, size_t vallen);
 LI_API int response_header_overwrite(server *srv, connection *con, const char *key, size_t keylen, const char *value, size_t vallen);
+LI_API int response_header_append(server *srv, connection *con, const char *key, size_t keylen, const char *value, size_t vallen);
 
 LI_API handler_t handle_get_backend(server *srv, connection *con);
 LI_API int http_response_redirect_to_directory(server *srv, connection *con);
