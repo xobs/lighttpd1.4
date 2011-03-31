@@ -125,7 +125,7 @@ GET /get-server-env.php?env=SERVER_NAME HTTP/1.0
 Host: zzz.example.org
 EOF
  );
-	$t->{RESPONSE} = [ { 'HTTP-Protocol' => 'HTTP/1.0', 'HTTP-Status' => 200, 'HTTP-Content' => 'www.example.org' } ];
+	$t->{RESPONSE} = [ { 'HTTP-Protocol' => 'HTTP/1.0', 'HTTP-Status' => 200, 'HTTP-Content' => 'zzz.example.org' } ];
 	ok($tf->handle_http($t) == 0, 'SERVER_NAME');
 
 	$t->{REQUEST}  = ( <<EOF
