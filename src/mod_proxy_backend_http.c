@@ -144,11 +144,11 @@ static handler_t proxy_http_parse_chunked_stream(server *srv, proxy_session *ses
 				in->bytes_out += (offset - c->offset);
 				c->offset = offset;
 			}
+			if ( (size_t)offset == c->mem->used - 1) {
+				break; /* get next chunk from queue */
+			}
+			/* now ch is the last character, and it wasn't an xdigit */
 			if (!(ch == ' ' || ch == '\r' || ch == ';')) {
-				if (ch == '\0') {
-					/* get next chunk from queue */
-					break;
-				}
 				/* protocol error.  bad http-chunk len */
 				return HANDLER_ERROR;
 			}
