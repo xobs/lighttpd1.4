@@ -165,6 +165,8 @@ NEWS
   * Include IP addresses on error log on password failures (fixes #2191)
   * Combine Cache-Control header value in mod_expire to existing HTTP header if header already added by other modules (fixes #2068)
   * Fix conditional interpretation of core options
+  * proxy-backend-http: fix chunked encoding parser
+  * more strict check for server.stat-cache-engine
 
 - 1.5.0-r19.. -
   * -F option added for spawn-fcgi
