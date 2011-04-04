@@ -306,19 +306,24 @@ int http_request_parse(server *srv, connection *con, http_req *req) {
 	} else {
 		/* GET http://www.example.org/foobar */
 		char *sl;
+		int l;
 
-		if (0 != strncmp(BUF_STR(req->uri_raw), "http://", 7)) {
+		if (0 == strncmp(BUF_STR(req->uri_raw), "https://", 8)) {
+			l = 8;
+		} else if (0 == strncmp(BUF_STR(req->uri_raw), "http://", 7)) {
+			l = 7;
+		} else {
 			con->http_status = 400;
 			return 0;
 		}
 
-		if (NULL == (sl = strchr(BUF_STR(req->uri_raw) + 7, '/'))) {
+		if (NULL == (sl = strchr(BUF_STR(req->uri_raw) + l, '/'))) {
 			con->http_status = 400;
 			return 0;
 		}
 
 		buffer_copy_string(con->request.uri, sl);
-		buffer_copy_string_len(con->request.http_host, BUF_STR(req->uri_raw) + 7, sl - BUF_STR(req->uri_raw) - 7);
+		buffer_copy_string_len(con->request.http_host, BUF_STR(req->uri_raw) + l, sl - BUF_STR(req->uri_raw) - l);
 
 		if (request_check_hostname(con->request.http_host)) {
 			if (srv->srvconf.log_request_header_on_error) {
