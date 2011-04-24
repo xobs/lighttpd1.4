@@ -47,11 +47,11 @@ typedef struct {
   UINT4 state[4];                                   /* state (ABCD) */
   UINT4 count[2];        /* number of bits, modulo 2^64 (lsb first) */
   unsigned char buffer[64];                         /* input buffer */
-} MD5_CTX;
+} li_MD5_CTX;
 
-LI_API void MD5_Init (MD5_CTX *);
-LI_API void MD5_Update (MD5_CTX *, const unsigned char *, unsigned int);
-LI_API void MD5_Final (unsigned char [16], MD5_CTX *);
+LI_API void li_MD5_Init (li_MD5_CTX *);
+LI_API void li_MD5_Update (li_MD5_CTX *, const unsigned char *, unsigned int);
+LI_API void li_MD5_Final (unsigned char [16], li_MD5_CTX *);
 
 
 
