@@ -551,6 +551,21 @@ if test x$ipv6 = xtrue; then
   fi
 fi
 
+dnl Check for libaio
+AC_MSG_CHECKING(for libaio)
+AC_ARG_WITH(libaio, AC_HELP_STRING([--with-libaio],[enable libaio network write handlers]),
+[WITH_LIBAIO=$withval],[WITH_LIBAIO=no])
+AC_MSG_RESULT([$WITH_LIBAIO])
+if test "$WITH_LIBAIO" != "no"; then
+ AC_CHECK_LIB(aio, io_getevents, [
+         AC_CHECK_HEADERS([libaio.h],[
+                 AIO_LIB=-laio
+                 AC_DEFINE([HAVE_LIBAIO], [1], [libaio])
+                 AC_DEFINE([HAVE_LIBAIO_H], [1], [libaio.h])
+         ])
+ ])
+ AC_SUBST(AIO_LIB)
+fi
 
 AM_CONDITIONAL(CROSS_COMPILING, test "x$cross_compiling" = xyes)
 
