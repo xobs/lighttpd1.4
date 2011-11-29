@@ -170,6 +170,7 @@ NEWS
   * Read hostname from absolute https:// uris in the request line (patch by Adrian Schröter <adrian@suse.de>)
   * [ssl/md5] prefix our own md5 implementation with li_ so it doesn't conflict with the openssl one (fixes #2269)
   * Enable linux-aio-sendfile for testing in autotools too
+  * [mod_auth] Fix signedness error in http_auth (fixes #2370, CVE-2011-4362)
 
 - 1.5.0-r19.. -
   * -F option added for spawn-fcgi
