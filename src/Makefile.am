@@ -267,8 +267,9 @@ mod_accesslog_la_LIBADD = $(common_libadd)
 
 lib_LTLIBRARIES += mod_netv.la
 mod_netv_la_SOURCES = mod_netv.c
+mod_netv_la_CFLAGS = $(AM_CFLAGS) $(LUA_CFLAGS)
 mod_netv_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined
-mod_netv_la_LIBADD = $(common_libadd)
+mod_netv_la_LIBADD = $(common_libadd) $(LUA_LIBS) -lm
 
 
 hdr = server.h buffer.h network.h log.h keyvalue.h \
