@@ -1331,7 +1331,7 @@ handle_file_uri(server *srv, connection *con, char *uri)
         snprintf(full_path, sizeof(full_path)-1,
                  "%s/%s/%s", PROJECT_DIR, project_name, file_name);
 
-        fd = open(full_path, O_WRONLY | O_CREAT, 0644);
+        fd = open(full_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (-1 == fd)
             return make_error(con, "Unable to create file", errno);
 
@@ -1347,7 +1347,6 @@ handle_file_uri(server *srv, connection *con, char *uri)
 				/* copy all chunks */
 				switch(c->type) {
 				case FILE_CHUNK:
-
 					if (c->file.mmap.start == MAP_FAILED) {
 						if (-1 == c->file.fd &&  /* open the file if not already open */
 						    -1 == (c->file.fd = open(c->file.name->ptr, O_RDONLY))) {
