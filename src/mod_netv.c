@@ -299,7 +299,6 @@ static int pushline(lua_State *L, int firstline)
     //write_prompt(L, firstline);
     if (fgets(buf, LUA_MAXINPUT, stdin)) {
         size_t len = strlen(buf);
-        printf("Got %d bytes in buffer: [%s]\n", len, buf);
         if (len > 0 && buf[len-1] == '\n')
             buf[len-1] = '\0';
         if (firstline && buf[0] == '=')
@@ -400,7 +399,6 @@ nlua_thread(int pin, int pout, char *project, char *filename)
 */
     }
 
-    sleep(5);
     lua_close(L);
     close(pin);
     close(pout);
@@ -419,7 +417,7 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
     if (con->request.http_method == HTTP_METHOD_POST) {
         char *temp_in;
         int in_ptr = 0;
-        unsigned int offset;
+        int offset;
         chunkqueue *cq = con->request_content_queue;
         chunk *c;
 
@@ -484,6 +482,7 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
         }
 
         
+        /* Write the buffered value to the Lua interpreter */
         offset = 0;
         while (offset < in_ptr) {
             int i;
@@ -496,7 +495,7 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
                 kill(nlua_states[id].pid, SIGKILL);
                 kill(nlua_states[id].pid, SIGTERM);
                 close(nlua_states[id].in_fd);
-                close(nlua_states[id].out_fd);
+                nlua_states[id].in_fd = -1;
                 nlua_pool_status[id] = 0;
                 return make_error(con, "Unable to write to stdin", errno);
             }
@@ -521,21 +520,32 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
         if (i > 0) {
             char bfr[4096];
             i = read(nlua_states[id].out_fd, bfr, sizeof(bfr));
-            if (!i || (i == -1 && (errno == EINTR || errno == EAGAIN))) {
+            if (i == -1 && (errno == EINTR || errno == EAGAIN)) {
+                /* Interrupted, but try again */
                 buffer_copy_string_len(b, "\0", 1);
                 return HANDLER_FINISHED;
             }
 
             else if (i == -1) {
+                /* Unrecoverable error */
                 kill(nlua_states[id].pid, SIGKILL);
                 kill(nlua_states[id].pid, SIGTERM);
-                close(nlua_states[id].in_fd);
                 close(nlua_states[id].out_fd);
+                nlua_states[id].out_fd = -1;
                 nlua_pool_status[id] = 0;
                 return make_error(con, "Unable to write to stdin", errno);
             }
 
-            buffer_copy_string_len(b, bfr, i);
+            else if (i == 0) {
+                /* Connection closed */
+                close(nlua_states[id].out_fd);
+                nlua_states[id].out_fd = -1;
+                nlua_pool_status[id] = 0;
+                con->http_status = 204;
+            }
+            else {
+                buffer_copy_string_len(b, bfr, i);
+            }
         }
 
         else if (!i || (i == -1 && (errno == EINTR || errno == EAGAIN))) {
@@ -546,8 +556,8 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
             /* Error occurred */
             kill(nlua_states[id].pid, SIGKILL);
             kill(nlua_states[id].pid, SIGTERM);
-            close(nlua_states[id].in_fd);
             close(nlua_states[id].out_fd);
+            nlua_states[id].out_fd = -1;
             nlua_pool_status[id] = 0;
             buffer_copy_string_len(b, "\0", 1);
             return make_error(con, "Unable to read from stdout", errno);
@@ -562,6 +572,7 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
 static void
 nlua_sig(int sig)
 {
+    UNUSED(sig);
     fflush(stdout);
     exit(0);
 }
@@ -671,10 +682,6 @@ nlua_close(server *srv, connection *con, int thread_id)
         return 0;
 
     kill(nlua_states[thread_id].pid, SIGTERM);
-    close(nlua_states[thread_id].in_fd);
-    close(nlua_states[thread_id].out_fd);
-    close(nlua_states[thread_id].in_ctrl);
-    close(nlua_states[thread_id].out_ctrl);
     kill(nlua_states[thread_id].pid, SIGKILL);
     nlua_pool_status[thread_id] = 0;
     return 0;
@@ -812,10 +819,12 @@ static void my_reaper(int sig) {
         int i;
         for (i=0; i<MAX_THREAD_ID; i++) {
             if (nlua_states[i].pid == pid) {
+                /* -- let the file handles drain on their own
                 close(nlua_states[i].in_fd);
                 close(nlua_states[i].out_fd);
                 close(nlua_states[i].in_ctrl);
                 close(nlua_states[i].out_ctrl);
+                */
                 nlua_pool_status[i] = 0;
             }
         }
@@ -830,10 +839,17 @@ static void my_reaper(int sig) {
 /* init the plugin data */
 INIT_FUNC(mod_netv_init) {
 	plugin_data *p;
+    int i;
 
 	p = calloc(1, sizeof(*p));
 
 	p->match_buf = buffer_init();
+    for (i=0; i<MAX_THREAD_ID; i++) {
+        nlua_states[i].in_fd    = -1;
+        nlua_states[i].out_fd   = -1;
+        nlua_states[i].in_ctrl  = -1;
+        nlua_states[i].out_ctrl = -1;
+    }
 
 	return p;
 }
