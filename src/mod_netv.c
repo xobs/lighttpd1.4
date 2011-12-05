@@ -350,7 +350,7 @@ nlua_thread(int pin, int pout, char *project, char *filename)
 
     luaL_openlibs(L);
 
-    /* If a filename was specified, load it in */
+    /* If a filename was specified, load it in and run it */
     if (project && *project) {
         char full_filename[2048];
         if (filename && *filename)
@@ -368,7 +368,7 @@ nlua_thread(int pin, int pout, char *project, char *filename)
         }
     }
 
-    /* Enter REPL mode */
+    /* If no file was specified, enter REPL mode */
     else {
         int status;
         while ((status = loadline(L)) != -1) {
@@ -387,16 +387,6 @@ nlua_thread(int pin, int pout, char *project, char *filename)
         lua_settop(L, 0);
         fputs("\n", stdout);
         fflush(stdout);
-
-/*
-        while(1) {
-            cmd_size=read(pin, cmd, sizeof(cmd));
-            if (cmd_size == -1 && (errno == EAGAIN || errno == EINTR))
-                continue;
-            if (cmd_size <= 0)
-                break;
-        }
-*/
     }
 
     lua_close(L);
