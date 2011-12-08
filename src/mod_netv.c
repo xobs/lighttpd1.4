@@ -19,7 +19,7 @@
 #include <lualib.h>
 
 #define LUA_MAXINPUT 512
-#define DEFAULT_STDIO_TIMEOUT 30
+#define DEFAULT_STDIO_TIMEOUT 0
 #define MAX_STDIO_TIMEOUT 120
 
 
@@ -292,11 +292,24 @@ static int docall(lua_State *L, int narg, int clear)
 }
 
 
+#define LUA_PROMPT  "\nlua> "
+#define LUA_PROMPT2 "\n .... "
+static void write_prompt(lua_State *L, int firstline)
+{
+    const char *p;
+    lua_getfield(L, LUA_GLOBALSINDEX, firstline ? "_PROMPT" : "_PROMPT2");
+    p = lua_tostring(L, -1);
+    if (p == NULL)
+        p = firstline ? LUA_PROMPT : LUA_PROMPT2;
+    fputs(p, stdout);
+    fflush(stdout);
+    lua_pop(L, 1);  /* remove global */
+}
 
 static int pushline(lua_State *L, int firstline)
 {
     char buf[LUA_MAXINPUT];
-    //write_prompt(L, firstline);
+    write_prompt(L, firstline);
     if (fgets(buf, LUA_MAXINPUT, stdin)) {
         size_t len = strlen(buf);
         if (len > 0 && buf[len-1] == '\n')
@@ -353,6 +366,7 @@ nlua_thread(int pin, int pout, char *project, char *filename)
     /* If a filename was specified, load it in and run it */
     if (project && *project) {
         char full_filename[2048];
+        printf("Interpreting code...\n");
         if (filename && *filename)
             snprintf(full_filename, sizeof(full_filename)-1,
                     "%s/%s/%s", PROJECT_DIR, project, filename);
@@ -370,6 +384,7 @@ nlua_thread(int pin, int pout, char *project, char *filename)
 
     /* If no file was specified, enter REPL mode */
     else {
+        printf("Entering REPL mode...\n");
         int status;
         while ((status = loadline(L)) != -1) {
             if (status == 0)
@@ -399,7 +414,19 @@ nlua_thread(int pin, int pout, char *project, char *filename)
 
 
 static int
-nlua_stdio(server *srv, connection *con, int id, int timeout)
+tohex(char c)
+{
+    if (c>='0' && c<='9')
+        return c-'0';
+    if (c>='a' && c<='f')
+        return c-'a'+10;
+    if (c>='A' && c<='F')
+        return c-'A'+10;
+    return c;
+}
+
+static int
+nlua_stdio(server *srv, connection *con, char *enc, int id, int timeout)
 {
     buffer *b;
 
@@ -471,6 +498,21 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
             chunkqueue_remove_finished_chunks(cq);
         }
 
+
+        if (!strcmp(enc, "hex")) {
+            char *s = temp_in;
+            int input=0, output=0;
+            while (s[input]) {
+                s[output] = (tohex(s[input++])<<4)&0xf0;
+                if (s[input])
+                    s[output] |= tohex(s[input++])&0x0f;
+                s[output++];
+            }
+            s[output] = '\0';
+            in_ptr /= 2;
+        }
+
+
         
         /* Write the buffered value to the Lua interpreter */
         offset = 0;
@@ -491,12 +533,17 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
             }
             offset += i;
         }
+        fflush(stdin);
+
+        /* Echo them back to the client */
+        b = chunkqueue_get_append_buffer(con->write_queue);
+        buffer_copy_string_len(b, temp_in, in_ptr);
     }
 
     /* If it's not a POST, then read from stdout / stderr */
     else if (con->request.http_method == HTTP_METHOD_GET) {
         fd_set s;
-        struct timeval t = {timeout, 0};
+        struct timeval t = {timeout, 20000};
         int i;
         b = chunkqueue_get_append_buffer(con->write_queue);
 
@@ -504,9 +551,6 @@ nlua_stdio(server *srv, connection *con, int id, int timeout)
         FD_SET(nlua_states[id].out_fd, &s);
 
         i = select(nlua_states[id].out_fd+1, &s, NULL, NULL, &t);
-        log_error_write(srv, __FILE__, __LINE__, 
-                "sdsd", "select() returned", i,
-                "for fd", nlua_states[id].out_fd);
         if (i > 0) {
             char bfr[4096];
             i = read(nlua_states[id].out_fd, bfr, sizeof(bfr));
@@ -1040,6 +1084,7 @@ handle_lua_uri(server *srv, connection *con, char *uri)
 
 
     lo = determine_lua_operation(cmd, token, arg);
+    if (lo != LUA_STDIO)
     log_error_write(srv, __FILE__, __LINE__, "sssssssssds",
             "Raw URI:", uri,
             " command name:", cmd,
@@ -1082,7 +1127,10 @@ handle_lua_uri(server *srv, connection *con, char *uri)
                 timeout = DEFAULT_STDIO_TIMEOUT;
         }
 
-        return nlua_stdio(srv, con, id, timeout);
+        if (!nlua_pool_status[id])
+            return make_error(con, "Thread not running", EINVAL);
+
+        return nlua_stdio(srv, con, arg, id, timeout);
     }
 
     else if (lo == LUA_LIST) {
